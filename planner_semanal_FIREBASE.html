@@ -343,7 +343,11 @@ body{background:var(--bg);color:var(--text);font-family:var(--fb);font-size:15px
 .task-card-title.striked{text-decoration:line-through;color:var(--text3);}
 .task-card-del{background:none;border:none;color:var(--text3);cursor:pointer;
   font-size:.85rem;padding:2px 4px;border-radius:4px;opacity:0;transition:opacity .15s;flex-shrink:0;}
+.task-card-edit{background:none;border:none;color:var(--text3);cursor:pointer;
+  font-size:.85rem;padding:2px 6px;border-radius:4px;opacity:0;transition:opacity .15s,color .15s;flex-shrink:0;}
 .task-card:hover .task-card-del{opacity:1;}
+.task-card:hover .task-card-edit{opacity:1;}
+.task-card-edit:hover{color:var(--accent2);background:rgba(74,124,220,.12);}
 
 .card-meta-row{display:flex;flex-wrap:wrap;gap:.3rem;margin-bottom:.4rem;}
 .card-meta-item{display:flex;align-items:center;gap:.25rem;font-size:.72rem;color:var(--text2);}
@@ -895,20 +899,22 @@ body{background:var(--bg);color:var(--text);font-family:var(--fb);font-size:15px
   </div>
 
 </div>
-
-</div><!-- /app -->
-
 <!-- EDIT MODAL -->
-<div class="overlay" id="editOverlay">
-<div class="modal">
-  <div class="modal-title">Editar tarea</div>
+<div class="p-overlay" id="editOverlay" onclick="if(event.target===this)closeEdit()">
+<div class="p-modal" style="width:min(560px,100%);">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.6rem;">
+    <div class="p-modal-title">Editar tarea</div>
+    <button onclick="closeEdit()" style="background:none;border:none;color:var(--text3);font-size:1.2rem;cursor:pointer;line-height:1;padding:.2rem .4rem;">✕</button>
+  </div>
   <div class="modal-form" id="editForm"></div>
-  <div class="modal-actions">
-    <button class="btn-cancel" onclick="closeEdit()">Cancelar</button>
-    <button class="btn-save" onclick="saveEdit()">Guardar</button>
+  <div style="display:flex;justify-content:flex-end;gap:.6rem;margin-top:.8rem;">
+    <button class="sb sb-ghost" onclick="closeEdit()">Cancelar</button>
+    <button class="sb sb-accent" onclick="saveEdit()">Guardar cambios</button>
   </div>
 </div>
 </div>
+
+</div><!-- /app -->
 
 <!-- STAFF MANAGEMENT MODAL -->
 <div class="p-overlay" id="mo-staff" onclick="if(event.target===this)closeP('mo-staff')">
@@ -947,12 +953,15 @@ body{background:var(--bg);color:var(--text);font-family:var(--fb);font-size:15px
 </div>
 
 <!-- EDIT HISTORY MODAL -->
-<div class="eh-overlay" id="ehOverlay" onclick="if(event.target===this)closeEH()">
-<div class="eh-modal">
-  <div class="eh-title">Historial de ediciones</div>
-  <div class="eh-task" id="ehTaskTitle"></div>
-  <div id="ehBody"></div>
-  <div style="display:flex;justify-content:flex-end;margin-top:.3rem;">
+<div class="p-overlay" id="ehOverlay" onclick="if(event.target===this)closeEH()">
+<div class="p-modal" style="width:min(560px,100%);">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.3rem;">
+    <div class="p-modal-title">Historial de ediciones</div>
+    <button onclick="closeEH()" style="background:none;border:none;color:var(--text3);font-size:1.2rem;cursor:pointer;line-height:1;padding:.2rem .4rem;">✕</button>
+  </div>
+  <div class="p-modal-sub" id="ehTaskTitle"></div>
+  <div id="ehBody" style="margin-top:.6rem;display:flex;flex-direction:column;gap:.5rem;max-height:60vh;overflow-y:auto;"></div>
+  <div style="display:flex;justify-content:flex-end;margin-top:.8rem;">
     <button class="sb sb-ghost" onclick="closeEH()">Cerrar</button>
   </div>
 </div>
@@ -1302,17 +1311,20 @@ function renderCards() {
 
     const editCount = (t.editHistory&&t.editHistory.length)||0;
     return `
-    <div class="task-card${t.done?' done':''}" id="card_${t.id}" ondblclick="${!t.done?'openEdit('+t.id+')':'openEH('+t.id+')'}" style="cursor:${!t.done?'pointer':'default'}" title="${!t.done?'Doble click para editar':''}">
+    <div class="task-card${t.done?' done':''}" id="card_${t.id}">
       <div class="task-card-accent" style="background:${color}"></div>
       <div class="task-card-top">
         <button class="task-card-check${t.done?' checked':''}" onclick="event.stopPropagation();toggleDone(${t.id})">${t.done?'✓':''}</button>
         <div class="task-card-title${t.done?' striked':''}">${esc(t.title)}</div>
-        ${!t.done?'<button class="task-card-del" onclick="event.stopPropagation();deleteTask('+t.id+')">✕</button>':''}
+        <div style="display:flex;align-items:center;gap:.25rem;flex-shrink:0;">
+          ${!t.done?`<button class="task-card-edit" onclick="event.stopPropagation();openEdit(${t.id})" title="Editar tarea">✎</button>`:''}
+          ${!t.done?'<button class="task-card-del" onclick="event.stopPropagation();deleteTask('+t.id+')">✕</button>':''}
+        </div>
       </div>
       <div class="card-meta-row">
         ${dateTag}${prioTag(t.priority)}
         ${t.type?`<span class="tag tag-tipo">${t.type}</span>`:''}
-        ${editCount?`<span class="edit-badge${editCount>=5?' many':''}" onclick="event.stopPropagation();openEH(${t.id})" title="Ver historial de ediciones">✎ ${editCount} edición${editCount>1?'es':''}</span>`:''}
+        ${(editCount && _currentUser && _currentUser.role==='admin')?`<span class="edit-badge${editCount>=5?' many':''}" onclick="event.stopPropagation();openEH(${t.id})" title="Ver historial de ediciones">✎ ${editCount} edición${editCount>1?'es':''}</span>`:''}
       </div>
       ${(t.responsable||t.pm||t.cliente)?`<div class="card-meta-row">
         ${t.pm?`<div class="card-meta-item">🗂 <span>${esc(t.pm)}</span></div>`:''}
@@ -2430,6 +2442,7 @@ async function staffEdit(name) {
 //  EDIT HISTORY
 // ─────────────────────────────────────────────
 function openEH(id) {
+  if (!_currentUser || _currentUser.role !== 'admin') { toast('Solo los administradores pueden ver el historial','err'); return; }
   const t = tasks.find(t=>t.id===id);
   if (!t) return;
   document.getElementById('ehTaskTitle').textContent = t.title;
