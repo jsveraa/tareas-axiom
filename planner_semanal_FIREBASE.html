@@ -33,6 +33,9 @@ window._fbGetUsers=()=>getDoc(_usersRef);
 window._fbSetUsers=(d)=>setDoc(_usersRef,d);
 window._fbAddAudit=(e)=>addDoc(_auditCol,e);
 window._fbGetAudit=(n)=>getDocs(query(_auditCol,orderBy("ts","desc"),limit(n||300)));
+const _staffRef=doc(_db,"planner_axiom","staff");
+window._fbGetStaff=()=>getDoc(_staffRef);
+window._fbSetStaff=(d)=>setDoc(_staffRef,d);
 window.dispatchEvent(new Event("firebaseReady"));
 </script>
 <style>
@@ -478,6 +481,18 @@ body{background:var(--bg);color:var(--text);font-family:var(--fb);font-size:15px
 .toast.err{border-left:3px solid var(--accent3);}
 .toast.info{border-left:3px solid var(--accent2);}
 
+/* ═══ STAFF MANAGEMENT ═══ */
+.staff-tabs{display:flex;gap:.4rem;margin-bottom:.8rem;}
+.staff-tab{font-family:var(--fm);font-size:.62rem;font-weight:600;letter-spacing:.06em;text-transform:uppercase;padding:.35rem .85rem;border-radius:999px;border:1px solid var(--border2);background:transparent;color:var(--text3);cursor:pointer;transition:all .15s;}
+.staff-tab.active{background:var(--accent);color:#0e0f11;border-color:var(--accent);}
+.staff-list{display:flex;flex-direction:column;gap:.4rem;max-height:260px;overflow-y:auto;margin-bottom:.8rem;}
+.staff-item{display:flex;align-items:center;justify-content:space-between;padding:.55rem .85rem;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);gap:.5rem;}
+.staff-item-info{display:flex;flex-direction:column;gap:.05rem;flex:1;}
+.staff-item-name{font-size:.82rem;font-weight:500;}
+.staff-item-area{font-family:var(--fm);font-size:.56rem;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;}
+.staff-add-row{display:grid;grid-template-columns:1fr 1fr auto;gap:.6rem;align-items:end;}
+.staff-add-row input,.staff-add-row select{background:var(--bg);border:1.5px solid var(--border);border-radius:var(--r);color:var(--text);font-family:var(--fb);font-size:14px;padding:.55rem .75rem;outline:none;min-height:42px;-webkit-appearance:none;}
+.staff-add-row input:focus,.staff-add-row select:focus{border-color:var(--accent2);}
 /* ═══ EDIT HISTORY ═══ */
 .edit-badge{display:inline-flex;align-items:center;gap:.2rem;font-family:var(--fm);font-size:.52rem;font-weight:700;letter-spacing:.04em;padding:.1rem .45rem;border-radius:999px;background:rgba(74,124,220,.13);color:#7aaaf0;border:1px solid rgba(74,124,220,.25);cursor:pointer;transition:all .15s;white-space:nowrap;user-select:none;}
 .edit-badge:hover{background:rgba(74,124,220,.25);border-color:#7aaaf0;}
@@ -626,6 +641,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--fb);font-size:15px
     <div id="user-badge-wrap"></div>
     <button class="backup-btn" id="btn-users" style="display:none" onclick="openP('mo-users')">👥</button>
     <button class="backup-btn" id="btn-audit" style="display:none" onclick="openAuditModal()">📋</button>
+    <button class="backup-btn" id="btn-staff" style="display:none" onclick="openStaffModal()" title="Gestionar personal">🧑‍💼</button>
     <div class="backup-row">
       <button class="backup-btn" onclick="saveBackup()" title="Guardar backup JSON">💾</button>
       <button class="backup-btn load" onclick="document.getElementById('loadInput').click()" title="Cargar backup JSON">📂</button>
@@ -894,6 +910,42 @@ body{background:var(--bg);color:var(--text);font-family:var(--fb);font-size:15px
 </div>
 </div>
 
+<!-- STAFF MANAGEMENT MODAL -->
+<div class="p-overlay" id="mo-staff" onclick="if(event.target===this)closeP('mo-staff')">
+<div class="p-modal" style="width:min(560px,100%);">
+  <div class="p-modal-title">Gestión de Personal</div>
+  <div class="p-modal-sub">Administra los responsables y Project Managers disponibles</div>
+  <div class="staff-tabs">
+    <button class="staff-tab active" id="stab-all"   onclick="setStaffTab('all')">Todos</button>
+    <button class="staff-tab"        id="stab-pm"    onclick="setStaffTab('pm')">Project Managers</button>
+    <button class="staff-tab"        id="stab-resp"  onclick="setStaffTab('resp')">Responsables</button>
+  </div>
+  <div class="staff-list" id="staff-list"></div>
+  <div style="font-family:var(--fm);font-size:.6rem;letter-spacing:.08em;text-transform:uppercase;color:var(--text3);margin-bottom:.4rem;">Agregar persona</div>
+  <div class="staff-add-row">
+    <div>
+      <div class="auth-lbl" style="margin-bottom:.25rem;">Nombre completo</div>
+      <input id="staff-new-name" placeholder="ej: Carlos Pérez">
+    </div>
+    <div>
+      <div class="auth-lbl" style="margin-bottom:.25rem;">Área / Rol</div>
+      <select id="staff-new-area">
+        <option value="Arquitectura">Arquitectura</option>
+        <option value="Electricidad">Electricidad</option>
+        <option value="Mecánicas">Mecánicas</option>
+        <option value="Estructural">Estructural</option>
+        <option value="Project Management">Project Management</option>
+        <option value="Otro">Otro</option>
+      </select>
+    </div>
+    <button class="sb sb-accent" onclick="staffAdd()" style="align-self:end;">+ Agregar</button>
+  </div>
+  <div style="display:flex;justify-content:flex-end;margin-top:.8rem;">
+    <button class="sb sb-ghost" onclick="closeP('mo-staff')">Cerrar</button>
+  </div>
+</div>
+</div>
+
 <!-- EDIT HISTORY MODAL -->
 <div class="eh-overlay" id="ehOverlay" onclick="if(event.target===this)closeEH()">
 <div class="eh-modal">
@@ -910,9 +962,9 @@ body{background:var(--bg);color:var(--text);font-family:var(--fb);font-size:15px
 
 <script>
 // ─────────────────────────────────────────────
-//  PERSONAL DATA
+//  PERSONAL DATA — loaded dynamically from Firestore, seeded from defaults
 // ─────────────────────────────────────────────
-const PERSONAL = [
+let PERSONAL = [
   {name:"Leidy Chacón",   area:"Arquitectura"},
   {name:"Omar Acuña",     area:"Arquitectura"},
   {name:"Juan Ortiz",     area:"Arquitectura"},
@@ -930,8 +982,12 @@ const PERSONAL = [
   {name:"Johan Vera",     area:"Mecánicas"},
   {name:"Simón Gaviria",  area:"Arquitectura"},
 ];
-const PMs = [...PERSONAL.filter(p=>p.area==="Project Management").map(p=>p.name), "Johan Vera"].sort();
-const ALL_STAFF = PERSONAL.map(p=>p.name).sort();
+// Dynamic getters — always reflect current PERSONAL
+function getPMs()      { return [...new Set(PERSONAL.filter(p=>p.area==="Project Management").map(p=>p.name))].sort(); }
+function getAllStaff()  { return PERSONAL.map(p=>p.name).sort(); }
+// Keep legacy vars as live aliases (re-assigned after staff loads)
+let PMs       = getPMs();
+let ALL_STAFF = getAllStaff();
 
 // ─────────────────────────────────────────────
 //  STATE
@@ -972,10 +1028,10 @@ function projColor(name) {
 // ─────────────────────────────────────────────
 function populateSelects() {
   const pmSel = document.getElementById('fPM');
-  PMs.forEach(n => { const o=document.createElement('option'); o.value=n; o.textContent=n; pmSel.appendChild(o); });
+  getPMs().forEach(n => { const o=document.createElement('option'); o.value=n; o.textContent=n; pmSel.appendChild(o); });
 
   const respSel = document.getElementById('fResponsable');
-  ALL_STAFF.forEach(n => { const o=document.createElement('option'); o.value=n; o.textContent=n; respSel.appendChild(o); });
+  getAllStaff().forEach(n => { const o=document.createElement('option'); o.value=n; o.textContent=n; respSel.appendChild(o); });
 }
 
 // ─────────────────────────────────────────────
@@ -2084,6 +2140,7 @@ function applyRoleUI(){
     +'<span class="role-chip '+(isAdmin?'role-admin':'role-user')+'">'+(isAdmin?'Admin':'Usuario')+'</span></div>';
   document.getElementById('btn-users').style.display=isAdmin?'':'none';
   document.getElementById('btn-audit').style.display=isAdmin?'':'none';
+  document.getElementById('btn-staff').style.display=isAdmin?'':'none';
   document.getElementById('tabDashboard').style.display=isAdmin?'':'none';
   document.getElementById('tabEntregas').style.display=isAdmin?'':'none';
   // Redirect to Ingresar on login
@@ -2247,6 +2304,129 @@ window.openP=function(id){
 };
 
 // ─────────────────────────────────────────────
+//  STAFF MANAGEMENT
+// ─────────────────────────────────────────────
+let _staffTab = 'all'; // 'all' | 'pm' | 'resp'
+
+async function loadStaff() {
+  if (!window._fbGetStaff) return;
+  try {
+    const snap = await window._fbGetStaff();
+    if (snap.exists()) {
+      PERSONAL = JSON.parse(snap.data().payload || '[]');
+    } else {
+      // First time: seed Firestore with the default list
+      await window._fbSetStaff({ payload: JSON.stringify(PERSONAL), updatedAt: new Date().toISOString() });
+    }
+    PMs       = getPMs();
+    ALL_STAFF = getAllStaff();
+  } catch(e) { console.error('loadStaff', e); }
+}
+
+async function saveStaff() {
+  if (!window._fbSetStaff) return;
+  PMs       = getPMs();
+  ALL_STAFF = getAllStaff();
+  await window._fbSetStaff({ payload: JSON.stringify(PERSONAL), updatedAt: new Date().toISOString() });
+  refreshAllSelects();
+}
+
+function refreshAllSelects() {
+  // Re-populate entry form selects
+  const pmSel   = document.getElementById('fPM');
+  const respSel = document.getElementById('fResponsable');
+  if (pmSel) {
+    const curPM = pmSel.value;
+    pmSel.innerHTML = '<option value="">— PM —</option>';
+    getPMs().forEach(n => { const o=document.createElement('option'); o.value=n; o.textContent=n; if(n===curPM)o.selected=true; pmSel.appendChild(o); });
+  }
+  if (respSel) {
+    const curR = respSel.value;
+    respSel.innerHTML = '<option value="">— Responsable —</option>';
+    getAllStaff().forEach(n => { const o=document.createElement('option'); o.value=n; o.textContent=n; if(n===curR)o.selected=true; respSel.appendChild(o); });
+  }
+  // Re-populate filter selects if visible
+  updateViewFilters();
+}
+
+function setStaffTab(tab) {
+  _staffTab = tab;
+  document.querySelectorAll('.staff-tab').forEach(b => b.classList.remove('active'));
+  document.getElementById('stab-'+tab).classList.add('active');
+  renderStaffList();
+}
+
+function openStaffModal() {
+  _staffTab = 'all';
+  document.querySelectorAll('.staff-tab').forEach(b => b.classList.remove('active'));
+  document.getElementById('stab-all').classList.add('active');
+  renderStaffList();
+  openP('mo-staff');
+}
+
+function renderStaffList() {
+  const filtered = PERSONAL.filter(p => {
+    if (_staffTab === 'pm')   return p.area === 'Project Management';
+    if (_staffTab === 'resp') return p.area !== 'Project Management';
+    return true;
+  }).sort((a,b) => a.name.localeCompare(b.name));
+
+  document.getElementById('staff-list').innerHTML = filtered.length
+    ? filtered.map(p => `
+      <div class="staff-item">
+        <div class="staff-item-info">
+          <div class="staff-item-name">${esc(p.name)}</div>
+          <div class="staff-item-area">${esc(p.area)}</div>
+        </div>
+        <div style="display:flex;gap:.4rem;align-items:center;">
+          <button class="sb sb-ghost" style="font-size:.58rem;padding:.3rem .65rem;" onclick="staffEdit('${esc(p.name)}')">✎ Editar</button>
+          <button class="sb sb-danger" style="font-size:.58rem;padding:.3rem .65rem;" onclick="staffDel('${esc(p.name)}')">✕</button>
+        </div>
+      </div>`).join('')
+    : '<div style="font-family:var(--fm);font-size:.7rem;color:var(--text3);text-align:center;padding:1.5rem 0;">Sin personal en esta categoría</div>';
+}
+
+async function staffAdd() {
+  const name = document.getElementById('staff-new-name').value.trim();
+  const area = document.getElementById('staff-new-area').value;
+  if (!name) { toast('Ingresa el nombre', 'err'); return; }
+  if (PERSONAL.find(p => p.name.toLowerCase() === name.toLowerCase())) { toast('Esa persona ya existe', 'err'); return; }
+  PERSONAL.push({ name, area });
+  await saveStaff();
+  document.getElementById('staff-new-name').value = '';
+  renderStaffList();
+  toast(`"${name}" agregado ✓`, 'ok');
+  logAudit('edit', `Agregó personal: ${name} (${area})`);
+}
+
+async function staffDel(name) {
+  if (!confirm(`¿Eliminar a "${name}" del personal?`)) return;
+  PERSONAL = PERSONAL.filter(p => p.name !== name);
+  await saveStaff();
+  renderStaffList();
+  toast(`"${name}" eliminado`, 'ok');
+  logAudit('edit', `Eliminó personal: ${name}`);
+}
+
+async function staffEdit(name) {
+  const p = PERSONAL.find(x => x.name === name);
+  if (!p) return;
+  const newName = prompt('Nombre:', p.name);
+  if (!newName || !newName.trim()) return;
+  const areas = ['Arquitectura','Electricidad','Mecánicas','Estructural','Project Management','Otro'];
+  const areaIdx = areas.indexOf(p.area);
+  const newArea = prompt(`Área (${areas.join(' / ')}):`, p.area);
+  if (!newArea || !areas.includes(newArea.trim())) { toast('Área inválida', 'err'); return; }
+  const old = `${p.name} (${p.area})`;
+  p.name = newName.trim();
+  p.area = newArea.trim();
+  await saveStaff();
+  renderStaffList();
+  toast('Personal actualizado ✓', 'ok');
+  logAudit('edit', `Editó personal: ${old} → ${p.name} (${p.area})`);
+}
+
+// ─────────────────────────────────────────────
 //  EDIT HISTORY
 // ─────────────────────────────────────────────
 function openEH(id) {
@@ -2294,6 +2474,7 @@ async function startApp(){
     else window.addEventListener('firebaseReady',resolve,{once:true});
   });
   await loadUsers();
+  await loadStaff();
   document.getElementById('loading-screen').classList.add('hidden');
   document.getElementById('auth-overlay').classList.remove('hidden');
   document.getElementById('au-user').focus();
