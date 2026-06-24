@@ -478,7 +478,27 @@ body{background:var(--bg);color:var(--text);font-family:var(--fb);font-size:15px
 .toast.err{border-left:3px solid var(--accent3);}
 .toast.info{border-left:3px solid var(--accent2);}
 
-/* ═══ LOADING ═══ */
+/* ═══ EDIT HISTORY ═══ */
+.edit-badge{display:inline-flex;align-items:center;gap:.2rem;font-family:var(--fm);font-size:.52rem;font-weight:700;letter-spacing:.04em;padding:.1rem .45rem;border-radius:999px;background:rgba(74,124,220,.13);color:#7aaaf0;border:1px solid rgba(74,124,220,.25);cursor:pointer;transition:all .15s;white-space:nowrap;user-select:none;}
+.edit-badge:hover{background:rgba(74,124,220,.25);border-color:#7aaaf0;}
+.edit-badge.many{background:rgba(232,197,71,.12);color:var(--accent);border-color:rgba(232,197,71,.3);}
+.eh-overlay{position:fixed;inset:0;background:rgba(0,0,0,.65);backdrop-filter:blur(4px);z-index:600;display:none;align-items:center;justify-content:center;padding:1rem;}
+.eh-overlay.open{display:flex;}
+.eh-modal{background:var(--surface);border:1px solid var(--border2);border-radius:12px;width:min(540px,100%);max-height:82vh;overflow-y:auto;padding:1.3rem;display:flex;flex-direction:column;gap:.8rem;}
+.eh-title{font-family:var(--fh);font-size:.95rem;font-weight:700;}
+.eh-task{font-family:var(--fm);font-size:.62rem;color:var(--text3);margin-top:-.3rem;}
+.eh-empty{font-family:var(--fm);font-size:.7rem;color:var(--text3);text-align:center;padding:1.5rem 0;}
+.eh-entry{padding:.7rem .85rem;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);display:flex;flex-direction:column;gap:.35rem;}
+.eh-entry-header{display:flex;align-items:center;justify-content:space-between;gap:.5rem;}
+.eh-entry-ts{font-family:var(--fm);font-size:.58rem;color:var(--text3);}
+.eh-entry-user{font-family:var(--fm);font-size:.58rem;font-weight:600;color:var(--accent2);}
+.eh-change{display:flex;flex-direction:column;gap:.1rem;}
+.eh-change-field{font-family:var(--fm);font-size:.58rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--text3);}
+.eh-change-row{display:flex;gap:.4rem;align-items:baseline;font-family:var(--fm);font-size:.68rem;flex-wrap:wrap;}
+.eh-old{color:var(--accent3);text-decoration:line-through;opacity:.8;}
+.eh-arrow{color:var(--text3);font-size:.55rem;}
+.eh-new{color:var(--accent4);}
+</style>
 #loading-screen{position:fixed;inset:0;background:var(--bg);z-index:9998;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:1rem;}
 #loading-screen.hidden{display:none;}
 .spin{width:30px;height:30px;border:3px solid var(--border2);border-top-color:var(--accent);border-radius:50%;animation:spin .7s linear infinite;}
@@ -874,6 +894,18 @@ body{background:var(--bg);color:var(--text);font-family:var(--fb);font-size:15px
 </div>
 </div>
 
+<!-- EDIT HISTORY MODAL -->
+<div class="eh-overlay" id="ehOverlay" onclick="if(event.target===this)closeEH()">
+<div class="eh-modal">
+  <div class="eh-title">Historial de ediciones</div>
+  <div class="eh-task" id="ehTaskTitle"></div>
+  <div id="ehBody"></div>
+  <div style="display:flex;justify-content:flex-end;margin-top:.3rem;">
+    <button class="sb sb-ghost" onclick="closeEH()">Cerrar</button>
+  </div>
+</div>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <script>
@@ -1212,17 +1244,19 @@ function renderCards() {
       }
     }
 
+    const editCount = (t.editHistory&&t.editHistory.length)||0;
     return `
-    <div class="task-card${t.done?' done':''}" id="card_${t.id}">
+    <div class="task-card${t.done?' done':''}" id="card_${t.id}" ondblclick="openEH(${t.id})">
       <div class="task-card-accent" style="background:${color}"></div>
       <div class="task-card-top">
         <button class="task-card-check${t.done?' checked':''}" onclick="toggleDone(${t.id})">${t.done?'✓':''}</button>
-        <div class="task-card-title${t.done?' striked':''}" ${!t.done?'onclick="openEdit('+t.id+')" style="cursor:pointer;"':'style="cursor:default;"'} title="${!t.done?'Toca para editar':''}">${esc(t.title)}</div>
+        <div class="task-card-title${t.done?' striked':''}" ${!t.done?'onclick="openEdit('+t.id+')" style="cursor:pointer;"':'style="cursor:default;"'} title="${!t.done?'Toca para editar | Doble click para historial':'Doble click para historial'}">${esc(t.title)}</div>
         ${!t.done?'<button class="task-card-del" onclick="deleteTask('+t.id+')">✕</button>':''}
       </div>
       <div class="card-meta-row">
         ${dateTag}${prioTag(t.priority)}
         ${t.type?`<span class="tag tag-tipo">${t.type}</span>`:''}
+        ${editCount?`<span class="edit-badge${editCount>=5?' many':''}" onclick="event.stopPropagation();openEH(${t.id})" title="Ver historial de ediciones">✎ ${editCount} edición${editCount>1?'es':''}</span>`:''}
       </div>
       ${(t.responsable||t.pm||t.cliente)?`<div class="card-meta-row">
         ${t.pm?`<div class="card-meta-item">🗂 <span>${esc(t.pm)}</span></div>`:''}
@@ -1466,17 +1500,55 @@ function saveEdit() {
   const t=tasks.find(t=>t.id===editingId);
   if(!t) return;
   const day=document.getElementById('eDay').value;
-  t.pm           = document.getElementById('ePM').value;
-  t.cliente      = document.getElementById('eCliente').value.trim();
-  t.project      = document.getElementById('eProject').value.trim();
-  t.title        = document.getElementById('eTitle').value.trim();
-  t.day          = day;
-  t.scheduledDate= document.getElementById('eDate').value || dayToDate(day);
-  t.responsable  = document.getElementById('eResp').value;
-  t.type         = document.getElementById('eType').value;
-  t.priority     = document.getElementById('ePrio').value;
-  t.notes        = document.getElementById('eNotes').value.trim();
-  t.observations = document.getElementById('eObs').value.trim();
+
+  // Capture changes before overwriting
+  const FIELD_LABELS = {
+    pm:'Project Manager', cliente:'Cliente', project:'Proyecto',
+    title:'Tarea', day:'Día', scheduledDate:'Fecha programada',
+    responsable:'Responsable', type:'Tipo', priority:'Prioridad',
+    notes:'Contexto', observations:'Observaciones'
+  };
+  const newVals = {
+    pm:           document.getElementById('ePM').value,
+    cliente:      document.getElementById('eCliente').value.trim(),
+    project:      document.getElementById('eProject').value.trim(),
+    title:        document.getElementById('eTitle').value.trim(),
+    day:          day,
+    scheduledDate:document.getElementById('eDate').value || dayToDate(day),
+    responsable:  document.getElementById('eResp').value,
+    type:         document.getElementById('eType').value,
+    priority:     document.getElementById('ePrio').value,
+    notes:        document.getElementById('eNotes').value.trim(),
+    observations: document.getElementById('eObs').value.trim()
+  };
+  const changes = [];
+  Object.keys(FIELD_LABELS).forEach(k => {
+    const prev = (t[k]||'').toString().trim();
+    const next = (newVals[k]||'').toString().trim();
+    if (prev !== next) changes.push({field: FIELD_LABELS[k], from: prev||'—', to: next||'—'});
+  });
+  if (changes.length) {
+    if (!t.editHistory) t.editHistory = [];
+    t.editHistory.push({
+      ts:      new Date().toISOString(),
+      user:    _currentUser ? _currentUser.username : 'desconocido',
+      changes
+    });
+  }
+
+  // Apply changes
+  t.pm           = newVals.pm;
+  t.cliente      = newVals.cliente;
+  t.project      = newVals.project;
+  t.title        = newVals.title;
+  t.day          = newVals.day;
+  t.scheduledDate= newVals.scheduledDate;
+  t.responsable  = newVals.responsable;
+  t.type         = newVals.type;
+  t.priority     = newVals.priority;
+  t.notes        = newVals.notes;
+  t.observations = newVals.observations;
+
   save(); closeEdit(); updateViewFilters(); renderCards();
   toast('Cambios guardados ✓','ok');
 }
@@ -2173,6 +2245,47 @@ window.openP=function(id){
   if(id==='mo-users')renderUMList();
   document.getElementById(id).classList.add('open');
 };
+
+// ─────────────────────────────────────────────
+//  EDIT HISTORY
+// ─────────────────────────────────────────────
+function openEH(id) {
+  const t = tasks.find(t=>t.id===id);
+  if (!t) return;
+  document.getElementById('ehTaskTitle').textContent = t.title;
+  const history = t.editHistory || [];
+  const body = document.getElementById('ehBody');
+  if (!history.length) {
+    body.innerHTML = '<div class="eh-empty">Esta tarea no ha sido editada todavía.</div>';
+  } else {
+    body.innerHTML = [...history].reverse().map((entry, i) => {
+      const d = new Date(entry.ts);
+      const ts = d.toLocaleDateString('es-CO',{day:'2-digit',month:'short',year:'numeric'})
+               + ' ' + d.toLocaleTimeString('es-CO',{hour:'2-digit',minute:'2-digit'});
+      const changeRows = entry.changes.map(c =>
+        `<div class="eh-change">
+          <div class="eh-change-field">${esc(c.field)}</div>
+          <div class="eh-change-row">
+            <span class="eh-old">${esc(c.from)}</span>
+            <span class="eh-arrow">→</span>
+            <span class="eh-new">${esc(c.to)}</span>
+          </div>
+        </div>`
+      ).join('');
+      const num = history.length - i;
+      return `<div class="eh-entry">
+        <div class="eh-entry-header">
+          <span style="font-family:var(--fm);font-size:.6rem;font-weight:700;color:var(--text3);">Edición #${num}</span>
+          <span class="eh-entry-user">✎ ${esc(entry.user||'—')}</span>
+          <span class="eh-entry-ts">${ts}</span>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:.4rem;">${changeRows}</div>
+      </div>`;
+    }).join('');
+  }
+  document.getElementById('ehOverlay').classList.add('open');
+}
+function closeEH() { document.getElementById('ehOverlay').classList.remove('open'); }
 
 // ─── BOOTSTRAP ───
 async function startApp(){
