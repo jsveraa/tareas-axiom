@@ -1302,12 +1302,12 @@ function renderCards() {
 
     const editCount = (t.editHistory&&t.editHistory.length)||0;
     return `
-    <div class="task-card${t.done?' done':''}" id="card_${t.id}" ondblclick="openEH(${t.id})">
+    <div class="task-card${t.done?' done':''}" id="card_${t.id}" ondblclick="${!t.done?'openEdit('+t.id+')':'openEH('+t.id+')'}" style="cursor:${!t.done?'pointer':'default'}" title="${!t.done?'Doble click para editar':''}">
       <div class="task-card-accent" style="background:${color}"></div>
       <div class="task-card-top">
-        <button class="task-card-check${t.done?' checked':''}" onclick="toggleDone(${t.id})">${t.done?'✓':''}</button>
-        <div class="task-card-title${t.done?' striked':''}" ${!t.done?'onclick="openEdit('+t.id+')" style="cursor:pointer;"':'style="cursor:default;"'} title="${!t.done?'Toca para editar | Doble click para historial':'Doble click para historial'}">${esc(t.title)}</div>
-        ${!t.done?'<button class="task-card-del" onclick="deleteTask('+t.id+')">✕</button>':''}
+        <button class="task-card-check${t.done?' checked':''}" onclick="event.stopPropagation();toggleDone(${t.id})">${t.done?'✓':''}</button>
+        <div class="task-card-title${t.done?' striked':''}">${esc(t.title)}</div>
+        ${!t.done?'<button class="task-card-del" onclick="event.stopPropagation();deleteTask('+t.id+')">✕</button>':''}
       </div>
       <div class="card-meta-row">
         ${dateTag}${prioTag(t.priority)}
