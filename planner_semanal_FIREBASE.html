@@ -1996,88 +1996,108 @@ function renderEntregas() {
   });
   const sortedResps = Object.keys(matrix).sort();
 
+  // Semanas que están al 100% en TODAS sus tareas (para ocultarlas en la matriz)
+  const weekTotalsMatrix = {};
+  tasks.forEach(t => {
+    const wl = getISOWeekLabel(t.scheduledDate)||'Sin fecha';
+    if (!weekTotalsMatrix[wl]) weekTotalsMatrix[wl]={total:0,done:0};
+    weekTotalsMatrix[wl].total++;
+    if (t.done) weekTotalsMatrix[wl].done++;
+  });
+  const visibleWeeks = hideCompleteWeeks
+    ? sortedWeeks.filter(wl => { const wt=weekTotalsMatrix[wl]; return !(wt&&wt.total>0&&wt.done===wt.total); })
+    : sortedWeeks;
+
+  // ── KPI GLOBAL ──
+  const gTot = Object.values(matrix).reduce((a,weeks)=>{
+    Object.values(weeks).forEach(m=>{a.t+=m.total;a.d+=m.done;a.l+=m.late;a.lp+=m.latePending;});
+    return a;
+  },{t:0,d:0,l:0,lp:0});
+  const gAtrasoBase = gTot.d + gTot.lp;
+  const gAtrasoPct  = gAtrasoBase ? Math.round((gTot.l+gTot.lp)/gAtrasoBase*100) : 0;
+  const gAcol  = gAtrasoPct<=10?'var(--accent4)':gAtrasoPct<=30?'var(--accent)':'var(--accent3)';
+  const gDonePct = gTot.t ? Math.round(gTot.d/gTot.t*100) : 0;
+  const gDcol  = gDonePct>=80?'var(--accent4)':gDonePct>=50?'var(--accent)':'var(--accent3)';
+
   if (!sortedResps.length) {
     cumWrap.innerHTML = '';
   } else {
-    const headerCells = sortedWeeks.map(w=>`<th style="font-size:.55rem;white-space:nowrap;padding:.4rem .6rem;font-family:var(--fm);letter-spacing:.05em;color:var(--text3);">${w}</th>`).join('');
-    const rows = sortedResps.map(resp => {
-      const weekCells = sortedWeeks.map(wk => {
-        const m = matrix[resp]?.[wk];
-        if (!m) return `<td style="text-align:center;color:var(--text3);font-size:.7rem;padding:.3rem .5rem;">—</td>`;
-        const pct = m.total ? Math.round(m.done/m.total*100) : 0;
-        const col = pct>=80?'var(--accent4)':pct>=50?'var(--accent)':'var(--accent3)';
-        const tip = `${m.done}/${m.total} · ${m.ontime} ok · ${m.early} antes · ${m.late} tarde · ${m.latePending} vencidas`;
-        return `<td style="padding:.3rem .4rem;" title="${tip}">
-          <div style="font-family:var(--fm);font-size:.65rem;text-align:center;color:${col};font-weight:700;">${pct}%</div>
-          <div style="height:4px;background:var(--border);border-radius:2px;overflow:hidden;margin:.15rem 0;">
-            <div style="width:${pct}%;height:100%;background:${col};"></div>
-          </div>
-          <div style="font-family:var(--fm);font-size:.52rem;color:var(--text3);text-align:center;">${m.done}/${m.total}</div>
-        </td>`;
-      }).join('');
-      const tot = sortedWeeks.reduce((a,wk)=>{const m=matrix[resp]?.[wk];if(!m)return a;a.t+=m.total;a.d+=m.done;a.l+=m.late;a.lp+=m.latePending;return a;},{t:0,d:0,l:0,lp:0});
-      const opct = tot.t ? Math.round(tot.d/tot.t*100) : 0;
-      const ocol = opct>=80?'var(--accent4)':opct>=50?'var(--accent)':'var(--accent3)';
-      // % atraso: (entregadas tarde + vencidas sin entregar) / (entregadas + vencidas)
-      const atrasoBase = tot.d + tot.lp;
-      const atrasoPct = atrasoBase ? Math.round((tot.l+tot.lp)/atrasoBase*100) : 0;
-      const acol = atrasoPct<=10?'var(--accent4)':atrasoPct<=30?'var(--accent)':'var(--accent3)';
-      return `<tr style="border-bottom:1px solid var(--border);">
-        <td style="font-size:.8rem;font-weight:500;padding:.5rem .8rem;white-space:nowrap;border-right:1px solid var(--border);">👤 ${esc(resp)}</td>
-        ${weekCells}
-        <td style="padding:.3rem .6rem;text-align:center;border-left:1px solid var(--border);">
-          <span style="font-family:var(--fm);font-size:.7rem;font-weight:700;color:${ocol};">${opct}%</span>
-        </td>
-        <td style="padding:.3rem .6rem;text-align:center;border-left:1px solid var(--border);" title="${tot.l} entregadas tarde + ${tot.lp} vencidas de ${atrasoBase}">
-          <span style="font-family:var(--fm);font-size:.7rem;font-weight:700;color:${acol};">${atrasoPct}%</span>
-        </td>
-      </tr>`;
-    }).join('');
-
-    // ── KPI GENERAL DE ATRASO ──
-    const gTot = Object.values(matrix).reduce((a,weeks)=>{
-      Object.values(weeks).forEach(m=>{a.t+=m.total;a.d+=m.done;a.l+=m.late;a.lp+=m.latePending;});
-      return a;
-    },{t:0,d:0,l:0,lp:0});
-    const gAtrasoBase = gTot.d + gTot.lp;
-    const gAtrasoPct = gAtrasoBase ? Math.round((gTot.l+gTot.lp)/gAtrasoBase*100) : 0;
-    const gAcol = gAtrasoPct<=10?'var(--accent4)':gAtrasoPct<=30?'var(--accent)':'var(--accent3)';
-    const gDonePct = gTot.t ? Math.round(gTot.d/gTot.t*100) : 0;
-    const gDcol = gDonePct>=80?'var(--accent4)':gDonePct>=50?'var(--accent)':'var(--accent3)';
-
     const kpiHTML = `
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:.8rem;margin-bottom:.9rem;">
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:.8rem;margin-bottom:.9rem;">
         <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:.9rem 1rem;">
           <div style="font-family:var(--fm);font-size:.56rem;letter-spacing:.1em;text-transform:uppercase;color:var(--text3);margin-bottom:.3rem;">Avance general</div>
           <div style="font-family:var(--fh);font-size:1.8rem;font-weight:800;color:${gDcol};line-height:1;">${gDonePct}%</div>
-          <div style="font-family:var(--fm);font-size:.58rem;color:var(--text3);margin-top:.3rem;">${gTot.d} de ${gTot.t} tareas entregadas</div>
+          <div style="font-family:var(--fm);font-size:.58rem;color:var(--text3);margin-top:.3rem;">${gTot.d} entregadas · ${gTot.t-gTot.d} pendientes</div>
+        </div>
+        <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:.9rem 1rem;">
+          <div style="font-family:var(--fm);font-size:.56rem;letter-spacing:.1em;text-transform:uppercase;color:var(--text3);margin-bottom:.3rem;">A tiempo / adelantadas</div>
+          <div style="font-family:var(--fh);font-size:1.8rem;font-weight:800;color:var(--accent4);line-height:1;">${gAtrasoBase ? Math.round((gTot.d-gTot.l)/gAtrasoBase*100) : 0}%</div>
+          <div style="font-family:var(--fm);font-size:.58rem;color:var(--text3);margin-top:.3rem;">${gTot.d-gTot.l} de ${gAtrasoBase} tareas cerradas</div>
         </div>
         <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:.9rem 1rem;">
           <div style="font-family:var(--fm);font-size:.56rem;letter-spacing:.1em;text-transform:uppercase;color:var(--text3);margin-bottom:.3rem;">Entregas con atraso</div>
           <div style="font-family:var(--fh);font-size:1.8rem;font-weight:800;color:${gAcol};line-height:1;">${gAtrasoPct}%</div>
-          <div style="font-family:var(--fm);font-size:.58rem;color:var(--text3);margin-top:.3rem;">${gTot.l} entregadas tarde · ${gTot.lp} vencidas sin entregar</div>
+          <div style="font-family:var(--fm);font-size:.58rem;color:var(--text3);margin-top:.3rem;">${gTot.l} tarde · ${gTot.lp} vencidas sin entregar</div>
         </div>
       </div>`;
+
+    const headerCells = visibleWeeks.map(w=>`<th style="font-size:.52rem;white-space:nowrap;padding:.35rem .5rem;font-family:var(--fm);letter-spacing:.03em;color:var(--text3);">${w}</th>`).join('');
+
+    const rows = sortedResps.map(resp => {
+      const weekCells = visibleWeeks.map(wk => {
+        const m = matrix[resp]?.[wk];
+        if (!m) return `<td style="text-align:center;color:var(--text3);font-size:.65rem;padding:.25rem .4rem;">—</td>`;
+        const pct = m.total ? Math.round(m.done/m.total*100) : 0;
+        const col = pct>=80?'var(--accent4)':pct>=50?'var(--accent)':'var(--accent3)';
+        const tip = `${m.done}/${m.total} · ${m.ontime+m.early} ok/antes · ${m.late} tarde · ${m.latePending} vencidas`;
+        return `<td style="padding:.25rem .35rem;" title="${tip}">
+          <div style="font-family:var(--fm);font-size:.62rem;text-align:center;color:${col};font-weight:700;">${pct}%</div>
+          <div style="height:3px;background:var(--border);border-radius:2px;overflow:hidden;margin:.1rem 0;">
+            <div style="width:${pct}%;height:100%;background:${col};"></div>
+          </div>
+          <div style="font-family:var(--fm);font-size:.5rem;color:var(--text3);text-align:center;">${m.done}/${m.total}</div>
+        </td>`;
+      }).join('');
+
+      // Totales por persona
+      const tot = sortedWeeks.reduce((a,wk)=>{const m=matrix[resp]?.[wk];if(!m)return a;a.t+=m.total;a.d+=m.done;a.l+=m.late;a.lp+=m.latePending;return a;},{t:0,d:0,l:0,lp:0});
+      const opct = tot.t ? Math.round(tot.d/tot.t*100) : 0;
+      const ocol = opct>=80?'var(--accent4)':opct>=50?'var(--accent)':'var(--accent3)';
+      const atrasoBase = tot.d + tot.lp;
+      const atrasoPct  = atrasoBase ? Math.round((tot.l+tot.lp)/atrasoBase*100) : 0;
+      const acol = atrasoPct<=10?'var(--accent4)':atrasoPct<=30?'var(--accent)':'var(--accent3)';
+
+      return `<tr style="border-bottom:1px solid var(--border);">
+        <td style="font-size:.78rem;font-weight:500;padding:.45rem .8rem;white-space:nowrap;border-right:1px solid var(--border);position:sticky;left:0;background:var(--surface2);z-index:1;">👤 ${esc(resp)}</td>
+        <td style="padding:.25rem .5rem;text-align:center;border-right:1px solid var(--border);background:var(--surface);" title="Cumplimiento total">
+          <span style="font-family:var(--fm);font-size:.72rem;font-weight:700;color:${ocol};">${opct}%</span>
+        </td>
+        <td style="padding:.25rem .5rem;text-align:center;border-right:1px solid var(--border);background:var(--surface);" title="${tot.l} tarde + ${tot.lp} vencidas de ${atrasoBase}">
+          <span style="font-family:var(--fm);font-size:.72rem;font-weight:700;color:${acol};">${atrasoPct}%</span>
+        </td>
+        ${weekCells}
+      </tr>`;
+    }).join('');
 
     const matrixTableHTML = matrixCollapsed ? '' : `
       <div style="overflow-x:auto;margin-bottom:.5rem;">
         <table style="width:100%;border-collapse:collapse;background:var(--surface);border:1px solid var(--border);border-radius:var(--r);overflow:hidden;">
           <thead><tr style="border-bottom:1px solid var(--border);background:var(--surface2);">
-            <th style="text-align:left;padding:.5rem .8rem;font-family:var(--fm);font-size:.58rem;letter-spacing:.08em;text-transform:uppercase;color:var(--text3);border-right:1px solid var(--border);">Responsable</th>
+            <th style="text-align:left;padding:.45rem .8rem;font-family:var(--fm);font-size:.56rem;letter-spacing:.08em;text-transform:uppercase;color:var(--text3);border-right:1px solid var(--border);position:sticky;left:0;background:var(--surface2);z-index:2;">Responsable</th>
+            <th style="font-family:var(--fm);font-size:.56rem;padding:.35rem .5rem;color:var(--accent);border-right:1px solid var(--border);white-space:nowrap;">TOTAL</th>
+            <th style="font-family:var(--fm);font-size:.56rem;padding:.35rem .5rem;color:var(--accent3);border-right:1px solid var(--border);white-space:nowrap;">% ATRASO</th>
             ${headerCells}
-            <th style="font-family:var(--fm);font-size:.58rem;padding:.4rem .6rem;color:var(--accent);border-left:1px solid var(--border);">TOTAL</th>
-            <th style="font-family:var(--fm);font-size:.58rem;padding:.4rem .6rem;color:var(--accent3);border-left:1px solid var(--border);">% ATRASO</th>
           </tr></thead>
           <tbody>${rows}</tbody>
         </table>
       </div>
-      <div style="font-family:var(--fm);font-size:.56rem;color:var(--text3);margin-bottom:.9rem;">
-        🟢 ≥80% cumplimiento · 🟡 50–79% · 🔴 &lt;50% · % Atraso = (tarde + vencidas) / (entregadas + vencidas) · Cursor sobre celda para detalle
+      <div style="font-family:var(--fm);font-size:.55rem;color:var(--text3);margin-bottom:.9rem;">
+        🟢 ≥80% · 🟡 50–79% · 🔴 &lt;50% · % Atraso = (tarde + vencidas) / total cerradas · Cursor sobre celda para detalle
       </div>`;
 
     cumWrap.innerHTML = kpiHTML + `
       <div style="font-family:var(--fh);font-size:.7rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--text3);margin-bottom:.5rem;cursor:pointer;" onclick="toggleMatrix()">
-        ${matrixCollapsed?'▸':'▾'} Cumplimiento por responsable × semana ${matrixCollapsed?'<span style="font-weight:400;text-transform:none;letter-spacing:0;color:var(--text3);">(click para desplegar)</span>':''}
+        ${matrixCollapsed?'▸':'▾'} Cumplimiento por responsable × semana
       </div>` + matrixTableHTML;
   }
 
@@ -2141,14 +2161,14 @@ function renderEntregas() {
       : `<span style="color:var(--accent3)">+${delta}d</span>`;
 
     return `<tr>
-      <td style="max-width:180px;"><div style="font-weight:500;line-height:1.3;">${esc(t.title)}</div>
-        ${t.project?`<div style="margin-top:2px;"><span class="tag tag-proj">${esc(t.project)}</span></div>`:''}</td>
-      <td style="font-size:.78rem;color:var(--text2);white-space:nowrap;">${esc(t.responsable)||'—'}</td>
-      <td style="font-size:.75rem;color:var(--text2);">${esc(t.pm)||'—'}</td>
+      <td><div style="font-weight:500;line-height:1.3;max-width:220px;">${esc(t.title)}</div>
+        ${t.project?`<div style="margin-top:3px;"><span class="tag tag-proj">${esc(t.project)}</span></div>`:''}</td>
+      <td style="font-size:.78rem;font-weight:500;color:var(--text);white-space:nowrap;">${esc(t.responsable)||'—'}</td>
+      <td style="font-size:.75rem;color:var(--text2);white-space:nowrap;">${esc(t.pm)||'—'}</td>
       <td style="font-family:var(--fm);font-size:.6rem;color:var(--text3);white-space:nowrap;">${getISOWeekLabel(t.scheduledDate)||'—'}</td>
-      <td style="font-family:var(--fm);font-size:.72rem;">${t.scheduledDate?fmtDate(t.scheduledDate):'—'}</td>
+      <td style="font-family:var(--fm);font-size:.72rem;white-space:nowrap;">${t.scheduledDate?fmtDate(t.scheduledDate):'—'}</td>
       <td style="font-family:var(--fm);font-size:.65rem;color:var(--text2);white-space:nowrap;">${t.doneAt?fmtFull(t.doneAt):'—'}</td>
-      <td style="font-family:var(--fm);font-size:.72rem;">${deltaCell}</td>
+      <td style="font-family:var(--fm);font-size:.72rem;text-align:center;">${deltaCell}</td>
       <td>${pill}</td>
     </tr>`;
   }).join('');
