@@ -874,6 +874,10 @@ body{background:var(--bg);color:var(--text);font-family:var(--fb);font-size:15px
     <select class="filter-select" id="eFilterResp" onchange="renderEntregas()">
       <option value="">Todos los responsables</option>
     </select>
+    <div style="margin-left:auto;display:flex;gap:.4rem;flex-shrink:0;">
+      <button class="filter-chip" id="btnToggleCum" onclick="toggleCumplimiento()" title="Mostrar u ocultar la tabla de responsables">📊 Tabla</button>
+      <button class="filter-chip" id="btnHide100"   onclick="toggleHide100()"       title="Ocultar semanas con 100% de tareas completadas">✅ Ocultar 100%</button>
+    </div>
   </div>
 
   <!-- Indicador cumplimiento por responsable y semana -->
@@ -1936,13 +1940,70 @@ function getISOWeekLabel(dateStr) {
   return `Sem ${wn} · ${fmt(mon)}–${fmt(fri)}`;
 }
 
+let _hide100pct = false;
+let _hideCum = false;
+
+function toggleHide100() {
+  _hide100pct = !_hide100pct;
+  const btn = document.getElementById('btnHide100');
+  if(btn) btn.classList.toggle('active', _hide100pct);
+  renderEntregas();
+}
+
+function toggleCumplimiento() {
+  _hideCum = !_hideCum;
+  const btn = document.getElementById('btnToggleCum');
+  if(btn) btn.classList.toggle('active', !_hideCum);
+  const wrap = document.getElementById('cumplimientoWrap');
+  if(wrap) wrap.style.display = _hideCum ? 'none' : '';
+}
+
 function renderEntregas() {
   const today = new Date().toISOString().split('T')[0];
   updateViewFilters();
   const respFilter = document.getElementById('eFilterResp')?.value||'';
 
+  // ── KPI CARDS ──
+  const allT = tasks.filter(t => !respFilter || t.responsable === respFilter);
+  const total = allT.length;
+  const done  = allT.filter(t => t.done).length;
+  const doneWithDate = allT.filter(t => t.done && t.scheduledDate);
+  const lateDelivered = doneWithDate.filter(t => deliveryStatus(t) === 'late').length;
+  const latePending   = allT.filter(t => deliveryStatus(t) === 'late_pending').length;
+  const ontime        = doneWithDate.filter(t => { const s=deliveryStatus(t); return s==='ontime'||s==='early'; }).length;
+  const cPct  = total ? Math.round(done/total*100) : 0;
+  const cCol  = cPct>=80?'var(--accent4)':cPct>=50?'var(--accent)':'var(--accent3)';
+  const pBase = doneWithDate.length + latePending;
+  const pPct  = pBase ? Math.round(ontime/pBase*100) : 0;
+  const pCol  = pPct>=80?'var(--accent4)':pPct>=50?'var(--accent)':'var(--accent3)';
+  const lateTotalPct = pBase ? Math.round((lateDelivered+latePending)/pBase*100) : 0;
+  const lateCol = lateTotalPct===0?'var(--accent4)':lateTotalPct<=20?'var(--accent)':'var(--accent3)';
+
+  let kpiWrap = document.getElementById('entregas-kpi-wrap');
+  if(!kpiWrap){
+    kpiWrap = document.createElement('div');
+    kpiWrap.id = 'entregas-kpi-wrap';
+    kpiWrap.style.cssText = 'display:grid;grid-template-columns:repeat(3,1fr);gap:.8rem;padding:.8rem 1rem .2rem;';
+    const cumWrapEl = document.getElementById('cumplimientoWrap');
+    cumWrapEl.parentNode.insertBefore(kpiWrap, cumWrapEl);
+  }
+  kpiWrap.innerHTML = [
+    {title:'Avance general',     pct:cPct,  col:cCol,  sub:`${done} entregadas · ${total-done} pendientes`},
+    {title:'Cumplimiento a tiempo', pct:pPct, col:pCol, sub:`${ontime} a tiempo/adelantadas`},
+    {title:'Entregadas con atraso', pct:lateTotalPct, col:lateCol, sub:`${lateDelivered} entregadas tarde · ${latePending} vencidas sin entregar`, invert:true},
+  ].map(k=>`
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:.9rem 1rem;">
+      <div style="font-family:var(--fm);font-size:.57rem;letter-spacing:.09em;text-transform:uppercase;color:var(--text3);margin-bottom:.3rem;">${k.title}</div>
+      <div style="font-family:var(--fh);font-size:1.8rem;font-weight:800;color:${k.col};line-height:1;">${k.pct}%</div>
+      <div style="height:6px;background:var(--border);border-radius:3px;margin:.4rem 0;overflow:hidden;">
+        <div style="height:100%;width:${k.pct}%;background:${k.col};border-radius:3px;transition:width .5s ease;"></div>
+      </div>
+      <div style="font-family:var(--fm);font-size:.6rem;color:var(--text3);">${k.sub}</div>
+    </div>`).join('');
+
   // ── CUMPLIMIENTO POR RESPONSABLE × SEMANA ──
   const cumWrap = document.getElementById('cumplimientoWrap');
+  if(_hideCum){ cumWrap.style.display='none'; } else { cumWrap.style.display=''; }
   const matrix = {};
   const allWeeks = new Set();
 
@@ -2034,6 +2095,22 @@ function renderEntregas() {
   });
 
   if (respFilter) list = list.filter(t => t.responsable === respFilter);
+
+  // If hide-100% is active, exclude tasks belonging to fully-completed weeks
+  if (_hide100pct) {
+    const weekTotals = {};
+    tasks.forEach(t => {
+      const wl = getISOWeekLabel(t.scheduledDate)||'Sin fecha';
+      if(!weekTotals[wl]) weekTotals[wl]={total:0,done:0};
+      weekTotals[wl].total++;
+      if(t.done) weekTotals[wl].done++;
+    });
+    list = list.filter(t => {
+      const wl = getISOWeekLabel(t.scheduledDate)||'Sin fecha';
+      const wt = weekTotals[wl]||{total:0,done:0};
+      return !(wt.total > 0 && wt.done === wt.total);
+    });
+  }
 
   list = list.filter(t => {
     const s = deliveryStatus(t);
