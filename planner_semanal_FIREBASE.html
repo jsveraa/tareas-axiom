@@ -874,10 +874,8 @@ body{background:var(--bg);color:var(--text);font-family:var(--fb);font-size:15px
     <select class="filter-select" id="eFilterResp" onchange="renderEntregas()">
       <option value="">Todos los responsables</option>
     </select>
-    <div style="display:flex;gap:.4rem;flex-shrink:0;">
-      <button class="filter-chip" id="btnToggleCum" onclick="toggleCumplimiento()" title="Mostrar u ocultar la tabla de responsables">📊 Tabla</button>
-      <button class="filter-chip" id="btnHide100"   onclick="toggleHide100()"       title="Ocultar semanas con 100% de tareas completadas">✅ Ocultar 100%</button>
-    </div>
+    <button class="filter-chip" id="btnHideWeeks" onclick="toggleHideCompleteWeeks()">👁 Ocultar semanas 100%</button>
+    <button class="filter-chip" id="btnToggleMatrix" onclick="toggleMatrix()">▾ Matriz cumplimiento</button>
   </div>
 
   <!-- Indicador cumplimiento por responsable y semana -->
@@ -1940,22 +1938,19 @@ function getISOWeekLabel(dateStr) {
   return `Sem ${wn} · ${fmt(mon)}–${fmt(fri)}`;
 }
 
-let _hide100pct = false;
-let _hideCum = false;
+// Estado de visibilidad (persistido en localStorage)
+let hideCompleteWeeks = localStorage.getItem('planner_hideCompleteWeeks')==='1';
+let matrixCollapsed   = localStorage.getItem('planner_matrixCollapsed')==='1';
 
-function toggleHide100() {
-  _hide100pct = !_hide100pct;
-  const btn = document.getElementById('btnHide100');
-  if(btn) btn.classList.toggle('active', _hide100pct);
+function toggleHideCompleteWeeks(){
+  hideCompleteWeeks=!hideCompleteWeeks;
+  localStorage.setItem('planner_hideCompleteWeeks',hideCompleteWeeks?'1':'0');
   renderEntregas();
 }
-
-function toggleCumplimiento() {
-  _hideCum = !_hideCum;
-  const btn = document.getElementById('btnToggleCum');
-  if(btn) btn.classList.toggle('active', !_hideCum);
-  const wrap = document.getElementById('cumplimientoWrap');
-  if(wrap) wrap.style.display = _hideCum ? 'none' : '';
+function toggleMatrix(){
+  matrixCollapsed=!matrixCollapsed;
+  localStorage.setItem('planner_matrixCollapsed',matrixCollapsed?'1':'0');
+  renderEntregas();
 }
 
 function renderEntregas() {
@@ -1963,47 +1958,14 @@ function renderEntregas() {
   updateViewFilters();
   const respFilter = document.getElementById('eFilterResp')?.value||'';
 
-  // ── KPI CARDS ──
-  const allT = tasks.filter(t => !respFilter || t.responsable === respFilter);
-  const total = allT.length;
-  const done  = allT.filter(t => t.done).length;
-  const doneWithDate = allT.filter(t => t.done && t.scheduledDate);
-  const lateDelivered = doneWithDate.filter(t => deliveryStatus(t) === 'late').length;
-  const latePending   = allT.filter(t => deliveryStatus(t) === 'late_pending').length;
-  const ontime        = doneWithDate.filter(t => { const s=deliveryStatus(t); return s==='ontime'||s==='early'; }).length;
-  const cPct  = total ? Math.round(done/total*100) : 0;
-  const cCol  = cPct>=80?'var(--accent4)':cPct>=50?'var(--accent)':'var(--accent3)';
-  const pBase = doneWithDate.length + latePending;
-  const pPct  = pBase ? Math.round(ontime/pBase*100) : 0;
-  const pCol  = pPct>=80?'var(--accent4)':pPct>=50?'var(--accent)':'var(--accent3)';
-  const lateTotalPct = pBase ? Math.round((lateDelivered+latePending)/pBase*100) : 0;
-  const lateCol = lateTotalPct===0?'var(--accent4)':lateTotalPct<=20?'var(--accent)':'var(--accent3)';
-
-  let kpiWrap = document.getElementById('entregas-kpi-wrap');
-  if(!kpiWrap){
-    kpiWrap = document.createElement('div');
-    kpiWrap.id = 'entregas-kpi-wrap';
-    kpiWrap.style.cssText = 'display:grid;grid-template-columns:repeat(3,1fr);gap:.8rem;padding:.8rem 1rem .2rem;';
-    const cumWrapEl = document.getElementById('cumplimientoWrap');
-    cumWrapEl.parentNode.insertBefore(kpiWrap, cumWrapEl);
-  }
-  kpiWrap.innerHTML = [
-    {title:'Avance general',     pct:cPct,  col:cCol,  sub:`${done} entregadas · ${total-done} pendientes`},
-    {title:'Cumplimiento a tiempo', pct:pPct, col:pCol, sub:`${ontime} a tiempo/adelantadas`},
-    {title:'Entregadas con atraso', pct:lateTotalPct, col:lateCol, sub:`${lateDelivered} entregadas tarde · ${latePending} vencidas sin entregar`, invert:true},
-  ].map(k=>`
-    <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:.9rem 1rem;">
-      <div style="font-family:var(--fm);font-size:.57rem;letter-spacing:.09em;text-transform:uppercase;color:var(--text3);margin-bottom:.3rem;">${k.title}</div>
-      <div style="font-family:var(--fh);font-size:1.8rem;font-weight:800;color:${k.col};line-height:1;">${k.pct}%</div>
-      <div style="height:6px;background:var(--border);border-radius:3px;margin:.4rem 0;overflow:hidden;">
-        <div style="height:100%;width:${k.pct}%;background:${k.col};border-radius:3px;transition:width .5s ease;"></div>
-      </div>
-      <div style="font-family:var(--fm);font-size:.6rem;color:var(--text3);">${k.sub}</div>
-    </div>`).join('');
+  // Estado visual de los botones toggle
+  const bHW=document.getElementById('btnHideWeeks');
+  const bTM=document.getElementById('btnToggleMatrix');
+  if(bHW){bHW.textContent=hideCompleteWeeks?'👁 Mostrar semanas 100%':'👁 Ocultar semanas 100%';bHW.classList.toggle('active',hideCompleteWeeks);}
+  if(bTM){bTM.textContent=matrixCollapsed?'▸ Matriz cumplimiento':'▾ Matriz cumplimiento';bTM.classList.toggle('active',matrixCollapsed);}
 
   // ── CUMPLIMIENTO POR RESPONSABLE × SEMANA ──
   const cumWrap = document.getElementById('cumplimientoWrap');
-  if(_hideCum){ cumWrap.style.display='none'; } else { cumWrap.style.display=''; }
   const matrix = {};
   const allWeeks = new Set();
 
@@ -2053,35 +2015,70 @@ function renderEntregas() {
           <div style="font-family:var(--fm);font-size:.52rem;color:var(--text3);text-align:center;">${m.done}/${m.total}</div>
         </td>`;
       }).join('');
-      const tot = sortedWeeks.reduce((a,wk)=>{const m=matrix[resp]?.[wk];if(!m)return a;a.t+=m.total;a.d+=m.done;return a;},{t:0,d:0});
+      const tot = sortedWeeks.reduce((a,wk)=>{const m=matrix[resp]?.[wk];if(!m)return a;a.t+=m.total;a.d+=m.done;a.l+=m.late;a.lp+=m.latePending;return a;},{t:0,d:0,l:0,lp:0});
       const opct = tot.t ? Math.round(tot.d/tot.t*100) : 0;
       const ocol = opct>=80?'var(--accent4)':opct>=50?'var(--accent)':'var(--accent3)';
+      // % atraso: (entregadas tarde + vencidas sin entregar) / (entregadas + vencidas)
+      const atrasoBase = tot.d + tot.lp;
+      const atrasoPct = atrasoBase ? Math.round((tot.l+tot.lp)/atrasoBase*100) : 0;
+      const acol = atrasoPct<=10?'var(--accent4)':atrasoPct<=30?'var(--accent)':'var(--accent3)';
       return `<tr style="border-bottom:1px solid var(--border);">
         <td style="font-size:.8rem;font-weight:500;padding:.5rem .8rem;white-space:nowrap;border-right:1px solid var(--border);">👤 ${esc(resp)}</td>
         ${weekCells}
         <td style="padding:.3rem .6rem;text-align:center;border-left:1px solid var(--border);">
           <span style="font-family:var(--fm);font-size:.7rem;font-weight:700;color:${ocol};">${opct}%</span>
         </td>
+        <td style="padding:.3rem .6rem;text-align:center;border-left:1px solid var(--border);" title="${tot.l} entregadas tarde + ${tot.lp} vencidas de ${atrasoBase}">
+          <span style="font-family:var(--fm);font-size:.7rem;font-weight:700;color:${acol};">${atrasoPct}%</span>
+        </td>
       </tr>`;
     }).join('');
 
-    cumWrap.innerHTML = `
-      <div style="font-family:var(--fh);font-size:.7rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--text3);margin-bottom:.5rem;">
-        Cumplimiento por responsable × semana
-      </div>
+    // ── KPI GENERAL DE ATRASO ──
+    const gTot = Object.values(matrix).reduce((a,weeks)=>{
+      Object.values(weeks).forEach(m=>{a.t+=m.total;a.d+=m.done;a.l+=m.late;a.lp+=m.latePending;});
+      return a;
+    },{t:0,d:0,l:0,lp:0});
+    const gAtrasoBase = gTot.d + gTot.lp;
+    const gAtrasoPct = gAtrasoBase ? Math.round((gTot.l+gTot.lp)/gAtrasoBase*100) : 0;
+    const gAcol = gAtrasoPct<=10?'var(--accent4)':gAtrasoPct<=30?'var(--accent)':'var(--accent3)';
+    const gDonePct = gTot.t ? Math.round(gTot.d/gTot.t*100) : 0;
+    const gDcol = gDonePct>=80?'var(--accent4)':gDonePct>=50?'var(--accent)':'var(--accent3)';
+
+    const kpiHTML = `
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:.8rem;margin-bottom:.9rem;">
+        <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:.9rem 1rem;">
+          <div style="font-family:var(--fm);font-size:.56rem;letter-spacing:.1em;text-transform:uppercase;color:var(--text3);margin-bottom:.3rem;">Avance general</div>
+          <div style="font-family:var(--fh);font-size:1.8rem;font-weight:800;color:${gDcol};line-height:1;">${gDonePct}%</div>
+          <div style="font-family:var(--fm);font-size:.58rem;color:var(--text3);margin-top:.3rem;">${gTot.d} de ${gTot.t} tareas entregadas</div>
+        </div>
+        <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:.9rem 1rem;">
+          <div style="font-family:var(--fm);font-size:.56rem;letter-spacing:.1em;text-transform:uppercase;color:var(--text3);margin-bottom:.3rem;">Entregas con atraso</div>
+          <div style="font-family:var(--fh);font-size:1.8rem;font-weight:800;color:${gAcol};line-height:1;">${gAtrasoPct}%</div>
+          <div style="font-family:var(--fm);font-size:.58rem;color:var(--text3);margin-top:.3rem;">${gTot.l} entregadas tarde · ${gTot.lp} vencidas sin entregar</div>
+        </div>
+      </div>`;
+
+    const matrixTableHTML = matrixCollapsed ? '' : `
       <div style="overflow-x:auto;margin-bottom:.5rem;">
         <table style="width:100%;border-collapse:collapse;background:var(--surface);border:1px solid var(--border);border-radius:var(--r);overflow:hidden;">
           <thead><tr style="border-bottom:1px solid var(--border);background:var(--surface2);">
             <th style="text-align:left;padding:.5rem .8rem;font-family:var(--fm);font-size:.58rem;letter-spacing:.08em;text-transform:uppercase;color:var(--text3);border-right:1px solid var(--border);">Responsable</th>
             ${headerCells}
             <th style="font-family:var(--fm);font-size:.58rem;padding:.4rem .6rem;color:var(--accent);border-left:1px solid var(--border);">TOTAL</th>
+            <th style="font-family:var(--fm);font-size:.58rem;padding:.4rem .6rem;color:var(--accent3);border-left:1px solid var(--border);">% ATRASO</th>
           </tr></thead>
           <tbody>${rows}</tbody>
         </table>
       </div>
       <div style="font-family:var(--fm);font-size:.56rem;color:var(--text3);margin-bottom:.9rem;">
-        🟢 ≥80% cumplimiento &nbsp;·&nbsp; 🟡 50–79% &nbsp;·&nbsp; 🔴 &lt;50% &nbsp;·&nbsp; Pasa el cursor sobre cada celda para ver detalle
+        🟢 ≥80% cumplimiento · 🟡 50–79% · 🔴 &lt;50% · % Atraso = (tarde + vencidas) / (entregadas + vencidas) · Cursor sobre celda para detalle
       </div>`;
+
+    cumWrap.innerHTML = kpiHTML + `
+      <div style="font-family:var(--fh);font-size:.7rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--text3);margin-bottom:.5rem;cursor:pointer;" onclick="toggleMatrix()">
+        ${matrixCollapsed?'▸':'▾'} Cumplimiento por responsable × semana ${matrixCollapsed?'<span style="font-weight:400;text-transform:none;letter-spacing:0;color:var(--text3);">(click para desplegar)</span>':''}
+      </div>` + matrixTableHTML;
   }
 
   // ── TASK TABLE ──
@@ -2096,19 +2093,19 @@ function renderEntregas() {
 
   if (respFilter) list = list.filter(t => t.responsable === respFilter);
 
-  // If hide-100% is active, exclude tasks belonging to fully-completed weeks
-  if (_hide100pct) {
+  // Ocultar tareas de semanas al 100% (calculado sobre TODAS las tareas de esa semana)
+  if (hideCompleteWeeks) {
     const weekTotals = {};
     tasks.forEach(t => {
-      const wl = getISOWeekLabel(t.scheduledDate)||'Sin fecha';
-      if(!weekTotals[wl]) weekTotals[wl]={total:0,done:0};
+      const wl = getISOWeekLabel(t.scheduledDate) || 'Sin fecha';
+      if (!weekTotals[wl]) weekTotals[wl] = {total:0, done:0};
       weekTotals[wl].total++;
-      if(t.done) weekTotals[wl].done++;
+      if (t.done) weekTotals[wl].done++;
     });
     list = list.filter(t => {
-      const wl = getISOWeekLabel(t.scheduledDate)||'Sin fecha';
-      const wt = weekTotals[wl]||{total:0,done:0};
-      return !(wt.total > 0 && wt.done === wt.total);
+      const wl = getISOWeekLabel(t.scheduledDate) || 'Sin fecha';
+      const wt = weekTotals[wl];
+      return !(wt && wt.total > 0 && wt.done === wt.total);
     });
   }
 
