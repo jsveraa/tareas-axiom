@@ -36,6 +36,9 @@ window._fbGetAudit=(n)=>getDocs(query(_auditCol,orderBy("ts","desc"),limit(n||30
 const _staffRef=doc(_db,"planner_axiom","staff");
 window._fbGetStaff=()=>getDoc(_staffRef);
 window._fbSetStaff=(d)=>setDoc(_staffRef,d);
+const _projectsRef=doc(_db,"planner_axiom","projects");
+window._fbGetProjects=()=>getDoc(_projectsRef);
+window._fbSetProjects=(d)=>setDoc(_projectsRef,d);
 window.dispatchEvent(new Event("firebaseReady"));
 </script>
 <style>
@@ -646,6 +649,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--fb);font-size:15px
     <button class="backup-btn" id="btn-users" style="display:none" onclick="openP('mo-users')">👥</button>
     <button class="backup-btn" id="btn-audit" style="display:none" onclick="openAuditModal()">📋</button>
     <button class="backup-btn" id="btn-staff" style="display:none" onclick="openStaffModal()" title="Gestionar personal">🧑‍💼</button>
+    <button class="backup-btn" id="btn-projects" style="display:none" onclick="openProjectsModal()" title="Gestionar proyectos">📁</button>
     <div class="backup-row">
       <button class="backup-btn" onclick="saveBackup()" title="Guardar backup JSON">💾</button>
       <button class="backup-btn load" onclick="document.getElementById('loadInput').click()" title="Cargar backup JSON">📂</button>
@@ -690,7 +694,9 @@ body{background:var(--bg);color:var(--text);font-family:var(--fb);font-size:15px
     <label class="field-lbl">
       <div class="step-lbl"><div class="step-num">3</div> Proyecto</div>
     </label>
-    <input class="field-input" id="fProject" placeholder="Nombre del proyecto" inputmode="text" autocomplete="off">
+    <select class="field-select" id="fProject">
+      <option value="">— Proyecto —</option>
+    </select>
   </div>
 
   <!-- STEP 4: TAREA + FECHA -->
@@ -917,6 +923,25 @@ body{background:var(--bg);color:var(--text);font-family:var(--fb);font-size:15px
 </div>
 
 </div><!-- /app -->
+
+<!-- PROJECTS MANAGEMENT MODAL -->
+<div class="p-overlay" id="mo-projects" onclick="if(event.target===this)closeP('mo-projects')">
+<div class="p-modal" style="width:min(480px,100%);">
+  <div class="p-modal-title">Gestión de Proyectos</div>
+  <div class="p-modal-sub">Solo los administradores pueden agregar o eliminar proyectos de esta lista</div>
+  <div class="staff-list" id="projects-list"></div>
+  <div style="display:flex;gap:.6rem;align-items:end;margin-top:.4rem;">
+    <div style="flex:1;">
+      <div class="auth-lbl" style="margin-bottom:.25rem;">Nombre del proyecto</div>
+      <input id="proj-new-name" class="auth-input" style="margin-bottom:0;" placeholder="ej: Mega estación X12">
+    </div>
+    <button class="sb sb-accent" onclick="projectAdd()" style="align-self:end;height:42px;">+ Agregar</button>
+  </div>
+  <div style="display:flex;justify-content:flex-end;margin-top:.8rem;">
+    <button class="sb sb-ghost" onclick="closeP('mo-projects')">Cerrar</button>
+  </div>
+</div>
+</div>
 
 <!-- STAFF MANAGEMENT MODAL -->
 <div class="p-overlay" id="mo-staff" onclick="if(event.target===this)closeP('mo-staff')">
@@ -1533,7 +1558,7 @@ function openEdit(id) {
     <div class="field-group"><label class="field-lbl">Cliente</label>
       <input class="field-input" id="eCliente" value="${esc(t.cliente||'')}"></div>
     <div class="field-group"><label class="field-lbl">Proyecto</label>
-      <input class="field-input" id="eProject" value="${esc(t.project||'')}"></div>
+      <select class="field-select" id="eProject">${projectOptions(t.project||'')}</select></div>
     <div class="field-group"><label class="field-lbl">Tarea</label>
       <textarea class="pencil-field" id="eTitle" style="min-height:80px">${esc(t.title)}</textarea></div>
     <div class="field-row">
@@ -2177,7 +2202,7 @@ function renderEntregas() {
 // ─────────────────────────────────────────────
 //  INIT
 // ─────────────────────────────────────────────
-populateSelects();
+// populateSelects() se llama desde initFirebaseData después de loadStaff()
 setWeekLabel();
 
 // ─────────────────────────────────────────────
@@ -2247,6 +2272,7 @@ function applyRoleUI(){
   document.getElementById('btn-users').style.display=isAdmin?'':'none';
   document.getElementById('btn-audit').style.display=isAdmin?'':'none';
   document.getElementById('btn-staff').style.display=isAdmin?'':'none';
+  document.getElementById('btn-projects').style.display=isAdmin?'':'none';
   document.getElementById('tabDashboard').style.display=isAdmin?'':'none';
   document.getElementById('tabEntregas').style.display=isAdmin?'':'none';
   // Redirect to Ingresar on login
@@ -2256,6 +2282,10 @@ function applyRoleUI(){
 async function initFirebaseData(){
   if(!window._fbGet)return;
   try{
+    // Load staff and projects first so selects are populated correctly
+    await loadStaff();
+    await loadProjects();
+    populateSelects();
     const snap=await window._fbGet();
     if(snap.exists()){
       const raw=snap.data();
@@ -2410,6 +2440,97 @@ window.openP=function(id){
 };
 
 // ─────────────────────────────────────────────
+//  PROJECTS MANAGEMENT
+// ─────────────────────────────────────────────
+let PROJECTS = []; // [{id, name}]
+
+async function loadProjects() {
+  if (!window._fbGetProjects) return;
+  try {
+    const snap = await window._fbGetProjects();
+    if (snap.exists()) {
+      PROJECTS = JSON.parse(snap.data().payload || '[]');
+    } else {
+      PROJECTS = [];
+      await window._fbSetProjects({ payload: JSON.stringify(PROJECTS), updatedAt: new Date().toISOString() });
+    }
+  } catch(e) { console.error('loadProjects', e); }
+}
+
+async function saveProjects() {
+  if (!window._fbSetProjects) return;
+  await window._fbSetProjects({ payload: JSON.stringify(PROJECTS), updatedAt: new Date().toISOString() });
+  refreshProjectSelects();
+}
+
+function refreshProjectSelects() {
+  ['fProject','eProject','filterProject'].forEach(id => {
+    const sel = document.getElementById(id);
+    if (!sel) return;
+    const cur = sel.value;
+    const isFilter = id === 'filterProject';
+    sel.innerHTML = isFilter
+      ? '<option value="">Todos los proyectos</option>'
+      : '<option value="">— Proyecto —</option>';
+    PROJECTS.forEach(p => {
+      const o = document.createElement('option');
+      o.value = p.name; o.textContent = p.name;
+      if (p.name === cur) o.selected = true;
+      sel.appendChild(o);
+    });
+  });
+}
+
+function projectOptions(selected) {
+  const base = `<option value="">— Proyecto —</option>`;
+  return base + PROJECTS.map(p =>
+    `<option value="${esc(p.name)}"${p.name===selected?' selected':''}>${esc(p.name)}</option>`
+  ).join('');
+}
+
+function openProjectsModal() {
+  renderProjectsList();
+  openP('mo-projects');
+}
+
+function renderProjectsList() {
+  const list = document.getElementById('projects-list');
+  if (!list) return;
+  list.innerHTML = PROJECTS.length
+    ? PROJECTS.map(p => `
+      <div class="staff-item">
+        <div class="staff-item-info">
+          <div class="staff-item-name">${esc(p.name)}</div>
+        </div>
+        <button class="sb sb-danger" style="font-size:.58rem;padding:.3rem .65rem;" onclick="projectDel('${esc(p.id)}')">✕ Eliminar</button>
+      </div>`).join('')
+    : '<div style="font-family:var(--fm);font-size:.7rem;color:var(--text3);text-align:center;padding:1.5rem 0;">Sin proyectos registrados</div>';
+}
+
+async function projectAdd() {
+  const name = document.getElementById('proj-new-name').value.trim();
+  if (!name) { toast('Ingresa el nombre del proyecto', 'err'); return; }
+  if (PROJECTS.find(p => p.name.toLowerCase() === name.toLowerCase())) { toast('Ese proyecto ya existe', 'err'); return; }
+  PROJECTS.push({ id: 'proj_' + Date.now(), name });
+  await saveProjects();
+  document.getElementById('proj-new-name').value = '';
+  renderProjectsList();
+  toast(`"${name}" agregado ✓`, 'ok');
+  logAudit('edit', `Agregó proyecto: ${name}`);
+}
+
+async function projectDel(id) {
+  const p = PROJECTS.find(x => x.id === id);
+  if (!p) return;
+  if (!confirm(`¿Eliminar el proyecto "${p.name}"?\nLas tareas existentes que lo referencien no se modificarán.`)) return;
+  PROJECTS = PROJECTS.filter(x => x.id !== id);
+  await saveProjects();
+  renderProjectsList();
+  toast(`"${p.name}" eliminado`, 'ok');
+  logAudit('edit', `Eliminó proyecto: ${p.name}`);
+}
+
+// ─────────────────────────────────────────────
 //  STAFF MANAGEMENT
 // ─────────────────────────────────────────────
 let _staffTab = 'all'; // 'all' | 'pm' | 'resp'
@@ -2452,6 +2573,7 @@ function refreshAllSelects() {
     getAllStaff().forEach(n => { const o=document.createElement('option'); o.value=n; o.textContent=n; if(n===curR)o.selected=true; respSel.appendChild(o); });
   }
   // Re-populate filter selects if visible
+  refreshProjectSelects();
   updateViewFilters();
 }
 
@@ -2499,6 +2621,7 @@ async function staffAdd() {
   if (PERSONAL.find(p => p.name.toLowerCase() === name.toLowerCase())) { toast('Esa persona ya existe', 'err'); return; }
   PERSONAL.push({ name, area });
   await saveStaff();
+  refreshAllSelects();
   document.getElementById('staff-new-name').value = '';
   renderStaffList();
   toast(`"${name}" agregado ✓`, 'ok');
@@ -2509,6 +2632,7 @@ async function staffDel(name) {
   if (!confirm(`¿Eliminar a "${name}" del personal?`)) return;
   PERSONAL = PERSONAL.filter(p => p.name !== name);
   await saveStaff();
+  refreshAllSelects();
   renderStaffList();
   toast(`"${name}" eliminado`, 'ok');
   logAudit('edit', `Eliminó personal: ${name}`);
@@ -2527,6 +2651,7 @@ async function staffEdit(name) {
   p.name = newName.trim();
   p.area = newArea.trim();
   await saveStaff();
+  refreshAllSelects();
   renderStaffList();
   toast('Personal actualizado ✓', 'ok');
   logAudit('edit', `Editó personal: ${old} → ${p.name} (${p.area})`);
