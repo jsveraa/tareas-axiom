@@ -1073,6 +1073,8 @@ function populateSelects() {
 
   const respSel = document.getElementById('fResponsable');
   getAllStaff().forEach(n => { const o=document.createElement('option'); o.value=n; o.textContent=n; respSel.appendChild(o); });
+
+  refreshProjectSelects();
 }
 
 // ─────────────────────────────────────────────
