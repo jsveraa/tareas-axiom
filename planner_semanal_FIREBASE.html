@@ -109,10 +109,15 @@ body{background:var(--bg);color:var(--text);font-family:var(--fb);font-size:15px
   font-family:var(--fm);font-size:.58rem;font-weight:700;
   display:flex;align-items:center;justify-content:center;flex-shrink:0;}
 
-.field-input,.field-select,.field-textarea{
+.field-input,.field-textarea{
   width:100%;background:var(--bg);border:1.5px solid var(--border);border-radius:var(--r);
   color:var(--text);font-family:var(--fb);font-size:16px;padding:.65rem .85rem;
   outline:none;transition:border-color .2s;-webkit-appearance:none;min-height:48px;}
+.field-select{
+  width:100%;background:var(--bg);border:1.5px solid var(--border);border-radius:var(--r);
+  color:var(--text);font-family:var(--fb);font-size:16px;padding:.65rem .85rem;
+  outline:none;transition:border-color .2s;min-height:48px;
+  appearance:auto;-webkit-appearance:auto;}
 .field-input:focus,.field-select:focus,.field-textarea:focus{border-color:var(--accent2);}
 .field-input::placeholder,.field-textarea::placeholder{color:var(--text3);}
 .field-textarea{resize:none;min-height:80px;line-height:1.5;}
@@ -303,7 +308,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--fb);font-size:15px
 .filter-chip.active{background:var(--accent);color:#0e0f11;border-color:var(--accent);}
 .filter-select{font-family:var(--fm);font-size:.62rem;padding:.4rem .7rem;
   border-radius:999px;border:1px solid var(--border2);background:var(--bg);
-  color:var(--text2);min-height:36px;-webkit-appearance:none;outline:none;}
+  color:var(--text2);min-height:36px;appearance:auto;-webkit-appearance:auto;outline:none;}
 
 /* Stats */
 .stats-row{display:flex;gap:.6rem;padding:.7rem 1rem;overflow-x:auto;flex-shrink:0;}
@@ -498,7 +503,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--fb);font-size:15px
 .staff-item-name{font-size:.82rem;font-weight:500;}
 .staff-item-area{font-family:var(--fm);font-size:.56rem;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;}
 .staff-add-row{display:grid;grid-template-columns:1fr 1fr auto;gap:.6rem;align-items:end;}
-.staff-add-row input,.staff-add-row select{background:var(--bg);border:1.5px solid var(--border);border-radius:var(--r);color:var(--text);font-family:var(--fb);font-size:14px;padding:.55rem .75rem;outline:none;min-height:42px;-webkit-appearance:none;}
+.staff-add-row input{background:var(--bg);border:1.5px solid var(--border);border-radius:var(--r);color:var(--text);font-family:var(--fb);font-size:14px;padding:.55rem .75rem;outline:none;min-height:42px;-webkit-appearance:none;}.staff-add-row select{background:var(--bg);border:1.5px solid var(--border);border-radius:var(--r);color:var(--text);font-family:var(--fb);font-size:14px;padding:.55rem .75rem;outline:none;min-height:42px;appearance:auto;-webkit-appearance:auto;}
 .staff-add-row input:focus,.staff-add-row select:focus{border-color:var(--accent2);}
 /* ═══ EDIT HISTORY ═══ */
 .edit-badge{display:inline-flex;align-items:center;gap:.2rem;font-family:var(--fm);font-size:.52rem;font-weight:700;letter-spacing:.04em;padding:.1rem .45rem;border-radius:999px;background:rgba(74,124,220,.13);color:#7aaaf0;border:1px solid rgba(74,124,220,.25);cursor:pointer;transition:all .15s;white-space:nowrap;user-select:none;}
@@ -560,7 +565,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--fb);font-size:15px
 .um-item-role{font-family:var(--fm);font-size:.56rem;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;}
 .um-item-btns{display:flex;gap:.4rem;flex-shrink:0;}
 .um-add-grid{display:grid;grid-template-columns:1fr 1fr auto;gap:.6rem;align-items:end;}
-.um-add-grid select,.um-add-grid input{background:var(--bg);border:1.5px solid var(--border);border-radius:var(--r);color:var(--text);font-family:var(--fb);font-size:14px;padding:.55rem .75rem;outline:none;min-height:42px;-webkit-appearance:none;}
+.um-add-grid input{background:var(--bg);border:1.5px solid var(--border);border-radius:var(--r);color:var(--text);font-family:var(--fb);font-size:14px;padding:.55rem .75rem;outline:none;min-height:42px;-webkit-appearance:none;}.um-add-grid select{background:var(--bg);border:1.5px solid var(--border);border-radius:var(--r);color:var(--text);font-family:var(--fb);font-size:14px;padding:.55rem .75rem;outline:none;min-height:42px;appearance:auto;-webkit-appearance:auto;}
 .um-add-grid select:focus,.um-add-grid input:focus{border-color:var(--accent2);}
 .sb{padding:.4rem .85rem;border-radius:var(--r);border:none;font-family:var(--fm);font-size:.62rem;font-weight:600;cursor:pointer;min-height:36px;transition:all .15s;}
 .sb-accent{background:var(--accent);color:#0e0f11;}
@@ -610,7 +615,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--fb);font-size:15px
     <button class="sb sb-accent" onclick="umAdd()" style="align-self:end;">+ Agregar</button>
   </div>
   <div style="margin-top:.2rem;"><div class="auth-lbl" style="margin-bottom:.25rem;">Rol</div>
-    <select id="um-new-role" style="background:var(--bg);border:1.5px solid var(--border);border-radius:var(--r);color:var(--text);font-family:var(--fb);font-size:14px;padding:.55rem .75rem;outline:none;width:100%;-webkit-appearance:none;">
+    <select id="um-new-role" style="background:var(--bg);border:1.5px solid var(--border);border-radius:var(--r);color:var(--text);font-family:var(--fb);font-size:14px;padding:.55rem .75rem;outline:none;width:100%;appearance:auto;-webkit-appearance:auto;">
       <option value="user">Usuario</option><option value="admin">Administrador</option>
     </select>
   </div>
